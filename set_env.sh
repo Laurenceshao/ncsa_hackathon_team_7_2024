@@ -1,6 +1,5 @@
 # root directory
-export REPO_DIR=/Users/butsushi/Documents/GitHub/ncsa_hackathon_team_7_2024
-
+export REPO_DIR=/mnt/f/Projects/NCSA_Hackathon/ncsa_hackathon_team_7_2024
 # azure openai configs
 export AZURE_OPENAI_API_VERSION=2023-07-01-preview
 export OPENAI_API_VERSION=2023-07-01-preview

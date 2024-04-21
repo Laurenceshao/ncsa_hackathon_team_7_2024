@@ -44,7 +44,7 @@ def main():
     
     run_workflow(bot, issue)
   except Exception as e:
-    logging.error(f"❌❌ Error in {inspect.currentframe().f_code.co_name}: {e}\nTraceback:\n", traceback.print_exc())
+    logging.error(f"Error in {inspect.currentframe().f_code.co_name}: {e}\nTraceback:\n", traceback.print_exc())
     err_str = f"Error in {inspect.currentframe().f_code.co_name}: {e}" + "\nTraceback\n```\n" + str(
         traceback.format_exc()) + "\n```"
     

@@ -200,11 +200,13 @@ class TreeState(TypedDict):
 
 
 def get_llm():
+    print(repr(os.getenv("AZURE_OPENAI_ENDPOINT")))
     return AzureChatOpenAI(
         azure_deployment="gpt-4-128k",
         openai_api_version=os.getenv("AZURE_OPENAI_API_VERSION"),
         temperature=0,
-        azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+        # azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+        azure_endpoint='https://uiuc-chat-canada-east.openai.azure.com/',
         openai_api_key=os.getenv("AZURE_OPENAI_API_KEY"),
     )
 
@@ -403,6 +405,6 @@ Use shell and file management tools to always execute the code and iterate on th
         for step in self.graph.stream(state):
             step_name, step_state = next(iter(step.items()))
             print(f"Step Name: {step_name}, Step State: {step_state}")
-        solution_node = step["__end__"].root.get_best_solution()
+        solution_node = step["__end__"]["root"].get_best_solution()
         best_trajectory = solution_node.get_trajectory(include_reflections=False)
         return best_trajectory[-1]
