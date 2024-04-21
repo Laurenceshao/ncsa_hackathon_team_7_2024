@@ -1,0 +1,21 @@
+# On Apple Silicon: pip uninstall grpcio -y; conda install grpcio -y
+python-dotenv==1.0.0
+qdrant-client==1.6.4
+pydantic==1.10.13 # pydantic v1 works better for ray
+langchain==0.1.*
+langchain-openai==0.1.*
+langchain-community==0.0.*
+langgraph==0.0.26
+langchainhub==0.1.*
+langchain-experimental==0.0.*
+langsmith==0.1.*
+openai==1.16.*
+tiktoken==0.5.2
+google-search-results==2.4.2
+termcolor==2.3.0
+playwright==1.40.0
+ray==2.8.1
+nest_asyncio==1.6.0
+beautifulsoup4==4.12.2
+wolframalpha==5.0.0
+arxiv==2.1.0

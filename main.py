@@ -5,7 +5,7 @@ import logging
 import traceback
 import uuid
 
-import ray
+# import ray
 from utils.agent_2 import WorkflowAgent
 from type.issue import Issue
 from langchain import hub

@@ -9,10 +9,10 @@ from langchain_openai import AzureChatOpenAI
 from langchain.agents.agent_toolkits.playwright.toolkit import PlayWrightBrowserToolkit
 from utils.file_io import load_jsonl
 
-AZURE_OPENAI_API_VERSION="2023-07-01-preview"
-AZURE_OPENAI_API_KEY="dc528eaf83724782914e171f3bbdaeda"
-AZURE_OPENAI_ENDPOINT="https://uiuc-chat-canada-east.openai.azure.com/"
-AZURE_MODEL_VERSION="gpt-4-hackathon"
+# AZURE_OPENAI_API_VERSION="2023-07-01-preview"
+# AZURE_OPENAI_API_KEY="dc528eaf83724782914e171f3bbdaeda"
+# AZURE_OPENAI_ENDPOINT="https://uiuc-chat-canada-east.openai.azure.com/"
+# AZURE_MODEL_VERSION="gpt-4-hackathon"
 ROOT_DIR=os.path.join(os.getenv("REPO_DIR"), "files")
 
 def get_human_input() -> str:
