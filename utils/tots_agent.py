@@ -254,8 +254,11 @@ class WorkflowAgent:
             ]
         )
 
+<<<<<<< Updated upstream
 
 
+=======
+>>>>>>> Stashed changes
         self.expansion_chain = (
             self.expansion_prompt
             | self.generate_candidates
@@ -422,6 +425,16 @@ class WorkflowAgent:
         )
         summary_result = self.llm.generate([prompt.to_messages()])
 
+<<<<<<< Updated upstream
+=======
+        #summary
+    def generate_summary(self, trajectory: List[BaseMessage], final_response: List[BaseMessage]) -> str:
+        prompt = self.summarization_prompt.invoke(
+            {"final_trajectory": trajectory, "final_response": final_response}
+        )
+        summary_result = self.llm.generate([prompt.to_messages()])
+
+>>>>>>> Stashed changes
         # print(dir(summary_result.generations[0]))
         print(summary_result.generations[0][0])
         print(summary_result.generations[0][0].to_json())
@@ -455,9 +468,12 @@ class WorkflowAgent:
         summary = self.generate_summary(full_trajectory, final_response) # added
 
         return summary
+<<<<<<< Updated upstream
 
         # return full_trajectory, final_response
     
 
 
 
+=======
+>>>>>>> Stashed changes
