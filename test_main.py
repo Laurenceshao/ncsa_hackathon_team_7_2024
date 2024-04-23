@@ -3,10 +3,12 @@ import json
 import uuid
 import logging
 import traceback
-from utils.agent_2 import WorkflowAgent
+from utils.tots_agent import WorkflowAgent
 from type.issue import Issue
 
-def run_workflow_with_inputs(title, body, message, file_path):
+MAX_DEPTH = 10
+
+def run_workflow_with_inputs(title, body, message, file_path, max_depth):
     """
     Function to create/update issue.json based on Gradio inputs and run the WorkflowAgent.
     """
@@ -36,16 +38,21 @@ def run_workflow_with_inputs(title, body, message, file_path):
     if file_path:
         issue_data["file_path"] = file_path
 
+    # if max_depth > 0:
+    #     issue_data["max_depth"] = max_depth
+    #     # bot = WorkflowAgent(langsmith_run_id=langsmith_run_id, max_depth=max_depth)
+        
+
     with open('issue.json', 'w') as f:
         json.dump(issue_data, f)
 
     try:
         issue = Issue.from_json(issue_data)  # Create Issue from the new data
-        bot = WorkflowAgent(langsmith_run_id=langsmith_run_id)
+        bot = WorkflowAgent(langsmith_run_id=langsmith_run_id, max_depth=MAX_DEPTH)
         
         prompt = f"Here's your latest assignment: {issue.format_issue()}"
         
-        result = bot.run(prompt)
+        trajectory, result = bot.run(prompt)
         
         return result 
 
