@@ -41,13 +41,13 @@ def main():
 
     print("ABOUT TO CALL WORKFLOW AGENT on COMMENT OPENED")
 
-    max_depth = 3
-    bot = TOTsAgent(langsmith_run_id=langsmith_run_id, task=issue.body, max_depth=max_depth)
+    max_depth = 10
+    bot = TOTsAgent(langsmith_run_id=langsmith_run_id, max_depth=max_depth)
     # bot = LATSAgent(langsmith_run_id=langsmith_run_id)
     
     run_workflow(bot, issue)
   except Exception as e:
-    logging.error(f"❌❌ Error in {inspect.currentframe().f_code.co_name}: {e}\nTraceback:\n", traceback.print_exc())
+    # logging.error(f"❌❌ Error in {inspect.currentframe().f_code.co_name}: {e}\nTraceback:\n", traceback.print_exc())
     err_str = f"Error in {inspect.currentframe().f_code.co_name}: {e}" + "\nTraceback\n```\n" + str(
         traceback.format_exc()) + "\n```"
     
@@ -61,11 +61,11 @@ def run_workflow(bot, issue: Issue):
   prompt = f"""Here's your latest assignment: {issue.format_issue()}"""
 
   # RUN BOT
-  result = bot.run(prompt)
+  full_trajectory, final_response = bot.run(prompt)
 
   # FIN: Conclusion & results comment
   logging.info(f"✅✅ Successfully completed the issue: {issue}")
-  logging.info(f"Output: {result}")
+  logging.info(f"Output: {final_response}")
 
 if __name__ == '__main__':
   bot = main()

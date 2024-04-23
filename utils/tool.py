@@ -5,6 +5,7 @@ import uuid
 import langchain
 from langchain.agents import load_tools
 from langchain.agents.agent_toolkits.file_management.toolkit import FileManagementToolkit
+from langchain_community.tools import ShellTool
 from langchain_community.document_loaders import AzureAIDocumentIntelligenceLoader
 from langchain_openai import AzureChatOpenAI
 from langchain.agents.agent_toolkits.playwright.toolkit import PlayWrightBrowserToolkit
@@ -56,6 +57,10 @@ def get_tools(langsmith_run_id):
   ).get_tools()
   tools += file_management
 
+  # SHELL TOOL
+  shell_tool = ShellTool()
+  tools += [shell_tool]
+
   # HUMAN TOOL
   llm = AzureChatOpenAI(
         temperature=0.1,
@@ -71,3 +76,4 @@ if __name__ == "__main__":
   for tool in tools:
     print(tool.args_schema)
   print(tools)
+
