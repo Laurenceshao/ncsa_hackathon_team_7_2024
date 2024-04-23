@@ -1,0 +1,1 @@
+{"name": "GoogleSearch", "desp": "Useful when you need to get the general information about a specific query.", "input_desp": "Input is a query for a search", "output_desp": "Output is the summary of the result of a search if search was successful and None otherwise."}
