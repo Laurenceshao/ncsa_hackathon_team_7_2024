@@ -19,3 +19,4 @@ nest_asyncio==1.6.0
 beautifulsoup4==4.12.2
 wolframalpha==5.0.0
 arxiv==2.1.0
+gradio==4.27.0

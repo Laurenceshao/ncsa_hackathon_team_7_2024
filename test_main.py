@@ -3,9 +3,18 @@ import json
 import uuid
 import logging
 import traceback
+<<<<<<< Updated upstream
 from utils.agent_2 import WorkflowAgent
 from type.issue import Issue
 
+=======
+from utils.tots_agent import WorkflowAgent
+# from utils.agent_2 import WorkflowAgent
+from type.issue import Issue
+
+MAX_DEPTH = 10
+
+>>>>>>> Stashed changes
 def run_workflow_with_inputs(title, body, message, file_path):
     """
     Function to create/update issue.json based on Gradio inputs and run the WorkflowAgent.
@@ -41,7 +50,12 @@ def run_workflow_with_inputs(title, body, message, file_path):
 
     try:
         issue = Issue.from_json(issue_data)  # Create Issue from the new data
+<<<<<<< Updated upstream
         bot = WorkflowAgent(langsmith_run_id=langsmith_run_id)
+=======
+        bot = WorkflowAgent(langsmith_run_id=langsmith_run_id, max_depth=MAX_DEPTH) # tots_agent
+        # bot = WorkflowAgent(langsmith_run_id=langsmith_run_id)
+>>>>>>> Stashed changes
         
         prompt = f"Here's your latest assignment: {issue.format_issue()}"
         

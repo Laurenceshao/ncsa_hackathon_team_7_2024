@@ -282,6 +282,16 @@ Use shell and file management tools to always execute the code and iterate on th
 
         self.graph = self.create_graph()
 
+        #summary prompting
+        self.summarization_prompt = ChatPromptTemplate.from_messages(
+            [
+                ("system", "You're an assistant that summarizes data in a clear, easy-to-understand format."),
+                ("user", "Generate a natural language summary from the given messages."),
+                MessagesPlaceholder(variable_name="final_trajectory"),
+                MessagesPlaceholder(variable_name="final_response")
+            ]
+        )
+
     def generate_candidates(self, messages: ChatPromptValue, config: RunnableConfig):
         n = config["configurable"].get("N", 5)
         bound_kwargs = self.llm.bind_tools(tools=self.tools).kwargs
@@ -393,7 +403,28 @@ Use shell and file management tools to always execute the code and iterate on th
             should_loop,
         )
         return builder.compile()
+    
+        #summary
+    def generate_summary(self, trajectory: List[BaseMessage], final_response: List[BaseMessage]) -> str:
+        prompt = self.summarization_prompt.invoke(
+            {"final_trajectory": trajectory, "final_response": final_response}
+        )
+        summary_result = self.llm.generate([prompt.to_messages()])
 
+        # print(dir(summary_result.generations[0]))
+        print(summary_result.generations[0][0])
+        print(summary_result.generations[0][0].to_json())
+        
+        summary_result = summary_result.generations[0][0].to_json()
+
+        if 'kwargs' in summary_result and 'message' in summary_result['kwargs']:
+            ai_message = summary_result['kwargs']['message']  # Get the AIMessage object
+            if hasattr(ai_message, 'content'):  # Check if content is accessible
+                message_content = ai_message.content  # Extract the content
+                return message_content  # Output the extracted message content
+        else:
+            return "Error: 'message' key not found in 'kwargs'"
+    
     def run(self, question: str) -> BaseMessage:
         """
         Executes the workflow to generate and evaluate responses to a given question.
@@ -404,7 +435,27 @@ Use shell and file management tools to always execute the code and iterate on th
         state = TreeState(input=question)
         for step in self.graph.stream(state):
             step_name, step_state = next(iter(step.items()))
-            print(f"Step Name: {step_name}, Step State: {step_state}")
-        solution_node = step["__end__"]["root"].get_best_solution()
-        best_trajectory = solution_node.get_trajectory(include_reflections=False)
-        return best_trajectory[-1]
+            # print(f"Step Name: {step_name}, Step State: {step_state}")
+            # print(f"Depth: {step_name.depth}")
+        solution_node = step["__end__"]["curr_step"]
+        full_trajectory = solution_node.messages
+        final_response = solution_node.curr_step_generation
+
+        summary = self.generate_summary(full_trajectory, final_response) # added
+
+        return summary
+
+    # def run(self, question: str) -> BaseMessage:
+    #     """
+    #     Executes the workflow to generate and evaluate responses to a given question.
+
+    #     :param question: The user's question to respond to.
+    #     :return: The best response message after evaluating various candidates.
+    #     """
+    #     state = TreeState(input=question)
+    #     for step in self.graph.stream(state):
+    #         step_name, step_state = next(iter(step.items()))
+    #         print(f"Step Name: {step_name}, Step State: {step_state}")
+    #     solution_node = step["__end__"]["root"].get_best_solution()
+    #     best_trajectory = solution_node.get_trajectory(include_reflections=False)
+    #     return best_trajectory[-1]
