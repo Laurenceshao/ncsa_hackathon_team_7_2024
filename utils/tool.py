@@ -1,13 +1,14 @@
 import os
 from typing import List
 
+import uuid
 import langchain
 from langchain.agents import load_tools
 from langchain.agents.agent_toolkits.file_management.toolkit import FileManagementToolkit
 from langchain_community.document_loaders import AzureAIDocumentIntelligenceLoader
 from langchain_openai import AzureChatOpenAI
 from langchain.agents.agent_toolkits.playwright.toolkit import PlayWrightBrowserToolkit
-from utils.file_io import load_jsonl
+# from utils.file_io import load_jsonl
 
 # AZURE_OPENAI_API_VERSION="2023-07-01-preview"
 # AZURE_OPENAI_API_KEY="dc528eaf83724782914e171f3bbdaeda"
@@ -29,7 +30,7 @@ def get_human_input() -> str:
     contents.append(line)
   return "\n".join(contents)
 
-def get_tools(langsmith_run_id ):
+def get_tools(langsmith_run_id):
   tools = []
 
   # GOOGLE SEARCH
@@ -65,5 +66,8 @@ def get_tools(langsmith_run_id ):
 
 
 if __name__ == "__main__":
-  tools = get_tools()
+  langsmith_run_id = str(uuid.uuid4())
+  tools = get_tools(langsmith_run_id)
+  for tool in tools:
+    print(tool.args_schema)
   print(tools)

@@ -29,43 +29,38 @@ from langgraph.graph import END, StateGraph
 from utils.tool import get_tools
 
 
-class Node:
-    """
-    Represents a node in the search tree. Each node contains messages, a reflection on those messages, and links to parent and child nodes.
-    Nodes are used to track the state of the search, including the depth of the search, whether a solution has been found, and the score of the solution.
-    """
+def get_llm():
+    return AzureChatOpenAI(
+        azure_deployment="gpt-4-128k",
+        openai_api_version=os.getenv("AZURE_OPENAI_API_VERSION"),
+        temperature=0.7,
+        azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+        openai_api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+    )
 
+class Node:
     def __init__(
         self,
         messages: List[BaseMessage],
-        reflection: Reflection,
+        evaluation: StateEvaluation = None,
         parent: Optional[Node] = None,
     ):
-        """
-        Initializes a new instance of the Node class.
-
-        :param messages: A list of messages associated with this node.
-        :param reflection: A reflection object containing feedback on the messages.
-        :param parent: An optional reference to the parent node in the search tree.
-        """
         self.messages = messages
         self.parent = parent
         self.children = []
         self.value = 0
         self.visits = 0
-        self.reflection = reflection
+        self.evaluation = evaluation
         self.depth = parent.depth + 1 if parent is not None else 1
-        self._is_solved = reflection.found_solution if reflection else False
-        if self._is_solved:
-            self._mark_tree_as_solved()
-        self.backpropagate(reflection.normalized_score)
-
+        self._is_solved = evaluation.found_solution if evaluation else False
+        self.best_child_idx = None
+    
     def __repr__(self) -> str:
         return (
             f"<Node value={self.value}, visits={self.visits},"
-            f" solution={self.messages} reflection={self.reflection}/>"
+            f" solution={self.messages} evaluation={self.evaluation}/>"
         )
-
+    
     @property
     def is_solved(self):
         """If any solutions exist, we can end the search."""
@@ -76,91 +71,65 @@ class Node:
         return not self.children
 
     @property
-    def best_child(self):
-        """Select the child with the highest UCT to search next."""
-        if not self.children:
-            return None
-        all_nodes = self._get_all_children()
-        return max(all_nodes, key=lambda child: child.upper_confidence_bound())
-
-    @property
-    def best_child_score(self):
-        """Return the child with the highest value."""
-        if not self.children:
-            return None
-        return max(self.children, key=lambda child: int(child.is_solved) * child.value)
-
-    @property
     def height(self) -> int:
         """Check for how far we've rolled out the tree."""
         if self.children:
             return 1 + max([child.height for child in self.children])
         return 1
 
-    def upper_confidence_bound(self, exploration_weight=1.0):
-        """Return the UCT score. This helps balance exploration vs. exploitation of a branch."""
-        if self.parent is None:
-            raise ValueError("Cannot obtain UCT from root node")
-        if self.visits == 0:
-            return self.value
-        # Encourages exploitation of high-value trajectories
-        average_reward = self.value / self.visits
-        # Encourages exploration of less-visited trajectories
-        exploration_term = math.sqrt(math.log(self.parent.visits) / self.visits)
-        return average_reward + exploration_weight * exploration_term
-
-    def backpropagate(self, reward: float):
-        """Update the score of this node and its parents."""
-        node = self
-        while node:
-            node.visits += 1
-            node.value = (node.value * (node.visits - 1) + reward) / node.visits
-            node = node.parent
-
-    def get_messages(self, include_reflections: bool = True):
-        if include_reflections:
-            return self.messages + [self.reflection.as_message()]
+    def get_messages(self, include_evaluation: bool = True):
+        if include_evaluation:
+            return self.messages + [self.evaluation.as_message()]
         return self.messages
 
-    def get_trajectory(self, include_reflections: bool = True) -> List[BaseMessage]:
+    def get_trajectory(self, include_evaluations: bool = True) -> List[BaseMessage]:
         """Get messages representing this search branch."""
         messages = []
         node = self
         while node:
             messages.extend(
-                node.get_messages(include_reflections=include_reflections)[::-1]
+                node.get_messages(include_evaluation=include_evaluations)[::-1]
             )
             node = node.parent
         # Reverse the final back-tracked trajectory to return in the correct order
         return messages[::-1]  # root solution, reflection, child 1, ...
+    
+    def get_solution(self):
+        """Return the solution."""
+        reached_solution = False
+        curr_step = self
+        while not reached_solution:
+            best_idx = curr_step.best_child_idx
+            curr_step = curr_step.children[best_idx]
+            reached_solution = curr_step._is_solved
 
-    def _get_all_children(self):
-        all_nodes = []
-        nodes = deque()
-        nodes.append(self)
-        while nodes:
-            node = nodes.popleft()
-            all_nodes.extend(node.children)
-            for n in node.children:
-                nodes.append(n)
-        return all_nodes
+        best_idx = curr_step.best_child_idx
+        solution = curr_step.children[best_idx]
+        return solution
 
-    def get_best_solution(self):
-        """Return the best solution from within the current sub-tree."""
-        all_nodes = [self] + self._get_all_children()
-        best_node = max(
-            all_nodes,
-            # We filter out all non-terminal, non-solution trajectories
-            key=lambda node: int(node.is_terminal and node.is_solved) * node.value,
+class StateEvaluation(BaseModel):
+    """
+    Encapsulates the evaluation and voting of a response. This includes a textual critique, a candidate ID, and a flag indicating if the solution was found.
+    """
+
+    evaluations: str = Field(
+        description="The critique and evaluations on the sufficiency, superfluency,"
+        " and general quality of the response"
+    )
+    best_candidate_id: int = Field(
+        description="ID of the best candidate response"
+    )
+    found_solution: bool = Field(
+        description="Whether the response has fully solved the question or task."
+    )
+
+    def as_message(self):
+        return HumanMessage(
+            content=f"Reasoning: {self.evaluations}\nBest Candidate ID: {self.best_candidate_id}\nIs Solved: {self.found_solution}"
         )
-        return best_node
-
-    def _mark_tree_as_solved(self):
-        parent = self.parent
-        while parent:
-            parent._is_solved = True
-            parent = parent.parent
-
+    
+    def get_best_candidate_id(self) -> int:
+        return self.best_candidate_id
 
 class Reflection(BaseModel):
     """
@@ -196,25 +165,15 @@ class TreeState(TypedDict):
     """
 
     root: Node
+    curr_step: Node
     input: str
-
-
-def get_llm():
-    return AzureChatOpenAI(
-        azure_deployment="gpt-4-128k",
-        openai_api_version=os.getenv("AZURE_OPENAI_API_VERSION"),
-        temperature=0,
-        azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
-        openai_api_key=os.getenv("AZURE_OPENAI_API_KEY"),
-    )
-
 
 class WorkflowAgent:
     """
     Manages the workflow of generating and evaluating responses to user queries. This includes initializing the language model, setting up the search tree, and executing the search algorithm to find the best response.
     """
 
-    def __init__(self, langsmith_run_id):
+    def __init__(self, langsmith_run_id, task, max_depth):
         """
         Initializes a new instance of the WorkflowAgent class.
 
@@ -223,6 +182,9 @@ class WorkflowAgent:
         self.llm = get_llm()
         self.tools = get_tools(langsmith_run_id)
         self.tool_executor = ToolExecutor(tools=self.tools)
+        self.parser = JsonOutputToolsParser(return_id=True)
+        self.task = task
+        self.max_depth = max_depth
 
         self.reflection_prompt = ChatPromptTemplate.from_messages(
             [
@@ -234,6 +196,7 @@ class WorkflowAgent:
                 MessagesPlaceholder(variable_name="candidate"),
             ]
         )
+
         self.reflection_llm_chain = (
             self.reflection_prompt
             | self.llm.bind_tools(
@@ -242,30 +205,42 @@ class WorkflowAgent:
             | PydanticToolsParser(tools=[Reflection])
         )
 
+        self.state_evaluation_chain = (
+            ChatPromptTemplate.from_messages(
+                [
+                    (
+                        "system",
+                        "You are a world-class programmer and AI assistant capable of executing any goal related to software development, genAI, LLMs, and full-stack technologies."
+                        "Given the candidate agent responses to the user question below, reflect and choose the best candidate to expand on."
+                        "After choosing the best candidate, check if the user request was fully solved.",
+                    ),
+                    ("user", "{input}{candidate}"),
+                ]
+            )
+            | self.llm.bind_tools(
+                tools=[StateEvaluation], tool_choice="StateEvaluation"
+            )
+            | PydanticToolsParser(tools=[StateEvaluation])
+        )
+
         self.initial_answer_chain = (
             ChatPromptTemplate.from_messages(
                 [
                     (
                         "system",
-                        """You are a world-class programmer and AI assistant capable of executing any goal related to software development, genAI, LLMs, and full-stack technologies.
-
-First, write a step-by-step plan for the task. The plan should be descriptive and well-explained. 
-
-The main objective is to plan and execute the workflow efficiently. Break down the execution into small, informed steps rather than attempting everything in one go.
-
-You have access to a variety of tools, including browser, github_tools for interacting with GitHub, and multiple vectorstore instances. Utilize the browser for internet searches and github_tools for all interactions with GitHub repositories. For code execution, rely onand shell tools available in the Docker environment to create and execute/test files.
-
-Use shell and file management tools to always execute the code and iterate on the plan based on the output.""",
+                        "You are a world-class programmer and AI assistant capable of executing any goal related to software development, genAI, LLMs, and full-stack technologies."
+                        "The main objective is to plan and execute the workflow efficiently to complete the user request."
+                        "Given the user request, generate the next step to complete the user request, execute the current step, and return the result each time. Projress with only a single step instead of the whole plan. Your step should be descriptive and well-explained."
+                        "You have access to a variety of tools, including browser, wolfram for numerical computations, arxiv for scientific article access, and interaction with the user. Utilize the browser for internet searches and rely on file management tools for saving and loading the local files needed.",
                     ),
-                    ("user", "{input}"),
-                    MessagesPlaceholder(variable_name="messages", optional=True),
+                    ("user", "{input}\n"),
                 ]
             )
-            | self.llm.bind_tools(tools=self.tools).with_config(
-                run_name="GenerateInitialCandidate"
-            )
+            | self.generate_candidates
+            # | self.llm.bind_tools(tools=self.tools).with_config(
+            #     run_name="GenerateInitialCandidate"
+            # )
         )
-        self.parser = JsonOutputToolsParser(return_id=True)
 
         self.expansion_chain = (
             ChatPromptTemplate.from_messages(
@@ -281,7 +256,7 @@ Use shell and file management tools to always execute the code and iterate on th
         self.graph = self.create_graph()
 
     def generate_candidates(self, messages: ChatPromptValue, config: RunnableConfig):
-        n = config["configurable"].get("N", 5)
+        n = config["configurable"].get("N", 3)
         bound_kwargs = self.llm.bind_tools(tools=self.tools).kwargs
         chat_result = self.llm.generate(
             [messages.to_messages()],
@@ -304,32 +279,59 @@ Use shell and file management tools to always execute the code and iterate on th
               reflection.found_solution = False
             return reflection
 
-        def generate_initial_response(state: TreeState) -> dict:
+        def generate_initial_response(state: TreeState) -> TreeState:
+            # Thoughts Generation
             logging.info(f"Generating initial response for: {state['input']}")
             print(f"Generating initial response for: {state['input']}")
-            res = self.initial_answer_chain.invoke({"input": state["input"]})
-            parsed = self.parser.invoke(res)
-            tool_responses = self.tool_executor.batch(
-                [ToolInvocation(tool=r["type"], tool_input=r["args"]) for r in parsed]
-            )
-            output_messages = [res] + [
-                ToolMessage(content=json.dumps(resp), tool_call_id=tool_call["id"])
-                for resp, tool_call in zip(tool_responses, parsed)
+
+            new_candidates = self.initial_answer_chain.invoke({"input": state["input"]})
+            parsed = self.parser.batch(new_candidates)
+            flattened = [
+                (i, tool_call)
+                for i, tool_calls in enumerate(parsed)
+                for tool_call in tool_calls
             ]
-            # print(f"Reflection inputs: {inputs}")
-            reflection = reflection_chain.invoke({"input": state["input"], "candidate": output_messages})
-            print(reflection)
-            quit()
-            root = Node(output_messages, reflection=reflection)
-            print(f"Initial response generated: {root}")
+            tool_responses = self.tool_executor.batch(
+                [
+                    ToolInvocation(tool=tool_call["type"], tool_input=tool_call["args"])
+                    for _, tool_call in flattened
+                ]
+            )
+            collected_responses = defaultdict(list)
+            for (i, tool_call), resp in zip(flattened, tool_responses):
+                collected_responses[i].append(
+                    ToolMessage(content=json.dumps(resp), tool_call_id=tool_call["id"])
+                )
+            output_messages = [
+                [candidate] + collected_responses[i]
+                for i, candidate in enumerate(new_candidates)
+            ]
+            
+            candidate_input = f"\nCandidate 0: {new_candidates[0].content}\nCandidate 1: {new_candidates[1].content}\nCandidate 2: {new_candidates[2].content}"
+            state_evaluation_input = {"input": state["input"], "candidate": candidate_input}
+            state_evaluation = self.state_evaluation_chain.invoke(state_evaluation_input)[0]
+
+            # Add Root Node
+            root = Node(output_messages, evaluation=state_evaluation)
+
+            # Add Children Nodes
+            child_nodes = [
+                Node(cand, parent=root)
+                for cand in output_messages
+            ]
+            root.best_child_idx = root.evaluation.get_best_candidate_id()
+            root.children.extend(child_nodes)
+            curr_step = root.children[root.best_child_idx]
+            print(f"Current Step: {curr_step}")
             return {
-                **state,
-                "root": root,
+                "root" : root,
+                "curr_step": curr_step,
+                "input": state["input"]
             }
 
         def expand(state: TreeState, config: RunnableConfig) -> TreeState:
             root = state["root"]
-            best_candidate: Node = root.best_child if root.children else root
+            best_candidate =  state["curr_step"]
             messages = best_candidate.get_trajectory()
             new_candidates = self.expansion_chain.invoke(
                 {"input": state["input"], "messages": messages}, config
@@ -346,8 +348,6 @@ Use shell and file management tools to always execute the code and iterate on th
                     for _, tool_call in flattened
                 ]
             )
-            print(tool_responses)
-            quit()
             collected_responses = defaultdict(list)
             for (i, tool_call), resp in zip(flattened, tool_responses):
                 collected_responses[i].append(
@@ -357,19 +357,24 @@ Use shell and file management tools to always execute the code and iterate on th
                 [candidate] + collected_responses[i]
                 for i, candidate in enumerate(new_candidates)
             ]
-            reflections = reflection_chain.batch(
-                [
-                    {"input": state["input"], "candidate": msges}
-                    for msges in output_messages
-                ],
-                config,
-            )
+
+            candidate_input = f"\nCandidate 0: {new_candidates[0].content}\nCandidate 1: {new_candidates[1].content}\nCandidate 2: {new_candidates[2].content}"
+            state_evaluation_input = {"input": state["input"], "candidate": candidate_input}
+            state_evaluation = self.state_evaluation_chain.invoke(state_evaluation_input)[0]
+
+            best_candidate.evaluation = state_evaluation
+
+            # Add Children Nodes
             child_nodes = [
-                Node(cand, parent=best_candidate, reflection=reflection)
-                for cand, reflection in zip(output_messages, reflections)
+                Node(cand, parent=best_candidate)
+                for cand in output_messages
             ]
+            best_candidate.best_child_idx = root.evaluation.get_best_candidate_id()
             best_candidate.children.extend(child_nodes)
-            print(f"Expanded node: {best_candidate}")
+            curr_step = best_candidate.children[best_candidate.best_child_idx]
+
+            state["curr_step"] = curr_step
+            print(f"Current Step: {curr_step}")
             return state
 
         def should_loop(state: TreeState):
@@ -377,7 +382,7 @@ Use shell and file management tools to always execute the code and iterate on th
             if root.is_solved:
                 print("Solved!")
                 return "__end__"
-            if root.height > 5:
+            if root.height > self.max_depth:
                 print("Reached max depth!")
                 return "__end__"
             print("Expanding...")
@@ -406,7 +411,8 @@ Use shell and file management tools to always execute the code and iterate on th
         state = TreeState(input=question)
         for step in self.graph.stream(state):
             step_name, step_state = next(iter(step.items()))
-            print(f"Step Name: {step_name}, Step State: {step_state}")
-        solution_node = step["__end__"]["root"].get_best_solution()
+            # print(f"Step Name: {step_name}, Step State: {step_state}")
+            print(f"Step Name: {step_name}")
+        solution_node = step["__end__"]["root"].get_solution()
         best_trajectory = solution_node.get_trajectory(include_reflections=False)
         return best_trajectory[-1]

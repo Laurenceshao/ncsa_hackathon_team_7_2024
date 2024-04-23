@@ -1,6 +1,6 @@
 {
-    "title": "Calculate Mean of Numbers",
-    "body": "Create a function to calculate the mean of an array of numbers. The function should take an array of numbers as input and return the mean of those numbers.",
+    "title": "Come up with some prime numbers and come up with new tasks using these numbers", 
+    "body": "Come up with some prime numbers and come up with new tasks using these numbers",
     "labels": ["enhancement"],
     "assignees": ["your-username"],
     "milestone": null,
@@ -11,9 +11,6 @@
     "closed_at": null,
     "author": "your-username",
     "comments": [
-      {
-        "user": "commenter-username",
-        "message": "Remember to handle empty arrays by returning 0 or null."
-      }
     ]
   }
+  

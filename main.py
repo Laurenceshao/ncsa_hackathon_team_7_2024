@@ -6,7 +6,8 @@ import traceback
 import uuid
 
 # import ray
-from utils.agent_2 import WorkflowAgent
+from utils.tots_agent import WorkflowAgent as TOTsAgent
+from utils.agent_2 import WorkflowAgent as LATSAgent
 from type.issue import Issue
 from langchain import hub
 
@@ -40,7 +41,9 @@ def main():
 
     print("ABOUT TO CALL WORKFLOW AGENT on COMMENT OPENED")
 
-    bot = WorkflowAgent(langsmith_run_id=langsmith_run_id)
+    max_depth = 3
+    bot = TOTsAgent(langsmith_run_id=langsmith_run_id, task=issue.body, max_depth=max_depth)
+    # bot = LATSAgent(langsmith_run_id=langsmith_run_id)
     
     run_workflow(bot, issue)
   except Exception as e:
@@ -52,9 +55,9 @@ def main():
 
   return '', 200
 
-def run_workflow(bot: WorkflowAgent, issue: Issue):
+def run_workflow(bot, issue: Issue):
 
-  # Create final prompt for user
+  # Create final prompt for userWorkflowAgent
   prompt = f"""Here's your latest assignment: {issue.format_issue()}"""
 
   # RUN BOT
