@@ -1,68 +1,49 @@
-import inspect
+import gradio as gr
 import json
-import asyncio
+import uuid
 import logging
 import traceback
-import uuid
-
-# import ray
 from utils.agent_2 import WorkflowAgent
 from type.issue import Issue
-from langchain import hub
 
-# import nest_asyncio
-
-# nest_asyncio.apply()
-
-def main():
-  """
-  Executes the main workflow of the application.
-
-  This function initializes the application, loads issue data from a JSON file, and processes it using a WorkflowAgent. If the issue data is valid, it runs the workflow to handle the issue. In case of any exceptions, it logs the error along with a traceback.
-
-  The function also generates a unique run ID for each execution to track the workflow process. It ensures that the application gracefully handles errors and provides detailed logs for debugging purposes.
-
-  Returns:
-      tuple: An empty string and HTTP status code 200, indicating successful execution.
-  """
+# Function to handle user queries and run the workflow
+def run_workflow_with_gradio(query):
+    """
+    Function to run the WorkflowAgent with Gradio.
+    """
+    langsmith_run_id = str(uuid.uuid4())
     
-  langsmith_run_id = str(uuid.uuid4())
-  
-  try:
-    with open('issue.json') as f:
-      issue_data = json.load(f)
+    try:
+        # Load issue data from JSON file
+        with open('issue.json') as f:
+            issue_data = json.load(f)
 
-    if issue_data:
-      issue: Issue = Issue.from_json(issue_data)
-    
-    if not issue:
-      raise ValueError(f"Missing the body of the webhook response. Response is {issue}")
+        if not issue_data:
+            raise ValueError("Missing the body of the webhook response.")
 
-    print("ABOUT TO CALL WORKFLOW AGENT on COMMENT OPENED")
+        # Create an issue instance from the loaded data
+        issue = Issue.from_json(issue_data)
 
-    bot = WorkflowAgent(langsmith_run_id=langsmith_run_id)
-    
-    run_workflow(bot, issue)
-  except Exception as e:
-    logging.error(f"Error in {inspect.currentframe().f_code.co_name}: {e}\nTraceback:\n", traceback.print_exc())
-    err_str = f"Error in {inspect.currentframe().f_code.co_name}: {e}" + "\nTraceback\n```\n" + str(
-        traceback.format_exc()) + "\n```"
-    
-    print(err_str)
+        # Create the WorkflowAgent and run the workflow
+        bot = WorkflowAgent(langsmith_run_id=langsmith_run_id)
+        prompt = f"Here's your latest assignment: {issue.format_issue()}"
+        result = bot.run(prompt)
 
-  return '', 200
+        return result  # Return the result from the workflow
 
-def run_workflow(bot: WorkflowAgent, issue: Issue):
+    except Exception as e:
+        error_message = f"Error: {e}\nTraceback:\n{traceback.format_exc()}"
+        logging.error(error_message)
+        return error_message  # Return the error message
 
-  # Create final prompt for user
-  prompt = f"""Here's your latest assignment: {issue.format_issue()}"""
+# Create the Gradio interface
+iface = gr.Interface(
+    fn=run_workflow_with_gradio,  # Function to call when user submits a query
+    inputs="text",  # Textbox for user input
+    outputs="text",  # Textbox for output response
+    title="Workflow Agent with Gradio",  # Title for the Gradio interface
+    description="Submit a query to run the workflow and get the result.",  # Description
+)
 
-  # RUN BOT
-  result = bot.run(prompt)
-
-  # FIN: Conclusion & results comment
-  logging.info(f"✅✅ Successfully completed the issue: {issue}")
-  logging.info(f"Output: {result}")
-
-if __name__ == '__main__':
-  bot = main()
+# Launch the Gradio interface
+iface.launch()
