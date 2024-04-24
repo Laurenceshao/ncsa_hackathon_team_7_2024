@@ -1,19 +1,15 @@
 import os
 from typing import List
-
+import uuid
 import langchain
 from langchain.agents import load_tools
 from langchain.agents.agent_toolkits.file_management.toolkit import FileManagementToolkit
+from langchain_community.tools import ShellTool
 from langchain_community.document_loaders import AzureAIDocumentIntelligenceLoader
 from langchain_openai import AzureChatOpenAI
 from langchain.agents.agent_toolkits.playwright.toolkit import PlayWrightBrowserToolkit
-from utils.file_io import load_jsonl
 
-# AZURE_OPENAI_API_VERSION="2023-07-01-preview"
-# AZURE_OPENAI_API_KEY="dc528eaf83724782914e171f3bbdaeda"
-# AZURE_OPENAI_ENDPOINT="https://uiuc-chat-canada-east.openai.azure.com/"
-# AZURE_MODEL_VERSION="gpt-4-hackathon"
-ROOT_DIR=os.path.join(os.getenv("REPO_DIR"), "files")
+ROOT_DIR = os.path.join(os.getenv("REPO_DIR"), "files")
 
 def get_human_input() -> str:
   """Placeholder for Slack/GH-Comment input from user."""
@@ -29,7 +25,7 @@ def get_human_input() -> str:
     contents.append(line)
   return "\n".join(contents)
 
-def get_tools(langsmith_run_id ):
+def get_tools(langsmith_run_id):
   tools = []
 
   # GOOGLE SEARCH
@@ -41,19 +37,25 @@ def get_tools(langsmith_run_id ):
   # ARXIV
   tools += load_tools(["arxiv"])
 
-  # DOCUMENT LOADER
+  # # DOCUMENT LOADER
   # file_path = "<filepath>"
   # loader = AzureAIDocumentIntelligenceLoader(
-  #     api_endpoint=AZURE_OPENAI_ENDPOINT, api_key=AZURE_OPENAI_API_KEY, file_path=file_path, api_model="prebuilt-layout"
+  #     api_endpoint=os.getenv('AZURE_OPENAI_ENDPOINT'), 
+  #     api_key=os.getenv('AZURE_OPENAI_API_KEY'), 
+  #     file_path=file_path, 
+  #     api_model="prebuilt-layout"
   # )
   # tools += [loader]
 
+  
+
   # FILE MANAGEMENT
-  file_management = FileManagementToolkit(
-    # If you don't provide a root_dir, operations will default to the current working directory
-    root_dir=ROOT_DIR
-  ).get_tools()
+  file_management = FileManagementToolkit(root_dir=ROOT_DIR).get_tools()
   tools += file_management
+
+  # SHELL TOOL
+  shell_tool = ShellTool()
+  tools += [shell_tool]
 
   # HUMAN TOOL
   llm = AzureChatOpenAI(
@@ -63,7 +65,9 @@ def get_tools(langsmith_run_id ):
   tools += load_tools(["human"], llm=llm, input_func=get_human_input)
   return tools
 
-
 if __name__ == "__main__":
-  tools = get_tools()
+  langsmith_run_id = str(uuid.uuid4())
+  tools = get_tools(langsmith_run_id)
+  for tool in tools:
+    print(tool.args_schema)
   print(tools)

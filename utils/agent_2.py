@@ -320,6 +320,8 @@ Use shell and file management tools to always execute the code and iterate on th
             ]
             # print(f"Reflection inputs: {inputs}")
             reflection = reflection_chain.invoke({"input": state["input"], "candidate": output_messages})
+            print(reflection)
+            quit()
             root = Node(output_messages, reflection=reflection)
             print(f"Initial response generated: {root}")
             return {
@@ -346,6 +348,8 @@ Use shell and file management tools to always execute the code and iterate on th
                     for _, tool_call in flattened
                 ]
             )
+            print(tool_responses)
+            quit()
             collected_responses = defaultdict(list)
             for (i, tool_call), resp in zip(flattened, tool_responses):
                 collected_responses[i].append(
