@@ -1,1 +1,0 @@
-function calculateMean(numbersArray) {\n  if (!Array.isArray(numbersArray) || numbersArray.some(isNaN)) {\n    throw new Error('Input must be an array of numbers');\n  }\n  const sum = numbersArray.reduce((acc, val) => acc + val, 0);\n  return sum / numbersArray.length;\n}
